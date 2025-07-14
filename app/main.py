@@ -7,6 +7,7 @@ from app import models
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
+from app.utils import generate_random_features, generate_fraud_prone_features
 
 app = FastAPI(
     title="Credit Card Transactions API",
@@ -111,6 +112,15 @@ def create_transaction(transaction: TransactionCreate, db: Session = Depends(get
     db.add(db_transaction)
     db.commit()
     db.refresh(db_transaction)
+    
+    # Generate and persist features
+    if transaction.class_:
+        features = generate_fraud_prone_features()
+    else:
+        features = generate_random_features()
+    db_features = models.TransactionFeature(transaction_id=db_transaction.id, **features)
+    db.add(db_features)
+    db.commit()
     return db_transaction
 
 @app.get("/transactions/", response_model=List[TransactionOut])
