@@ -21,6 +21,9 @@ A FastAPI project for managing credit card transactions, features, models, and p
 - pip (Python package manager)
 
 ---
+**Link to Video Presentation: https://www.youtube.com/watch?v=uNuI96jQ34Q**
+
+
 
 ## Setup Instructions
 
