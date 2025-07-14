@@ -8,12 +8,16 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 from app.utils import generate_random_features, generate_fraud_prone_features
+from app.models import Base
 
 app = FastAPI(
     title="Credit Card Transactions API",
     description="API for managing credit card transactions and related data.",
     version="1.0.0"
 )
+
+# Create all tables on startup
+Base.metadata.create_all(bind=engine)
 
 @app.get("/")
 def read_root():
