@@ -1,12 +1,12 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.database import get_db
-import os
-from pymongo import MongoClient
-from pymongo.errors import PyMongoError
-import joblib
-import numpy as np
+from app import models
+from pydantic import BaseModel
+from typing import List, Optional
+from datetime import datetime
 
 app = FastAPI(
     title="Credit Card Transactions API",
@@ -14,8 +14,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-mongo_client = MongoClient(MONGO_URI)
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the Credit Card Transactions API"}
@@ -28,58 +26,120 @@ def db_health_check(db=Depends(get_db)):
     except SQLAlchemyError as e:
         return {"db_status": "error", "detail": str(e)}
 
-@app.get("/predict")
-def predict():
-   # Dummy input based on model.ipynb
-   dummy_input = np.array([
-       [
-       0.0,           # Time
-       -1.359807,     # V1
-       -0.072781,     # V2
-       2.536347,      # V3
-       1.378155,      # V4
-       -0.338321,     # V5
-       0.462388,      # V6
-       0.239599,      # V7
-       0.098698,      # V8
-       0.363787,      # V9
-       0.090794,      # V10
-       -0.551600,     # V11
-       -0.617801,     # V12
-       -0.991390,     # V13
-       -0.311169,     # V14
-       1.468177,      # V15
-       -0.470401,     # V16
-       0.207971,      # V17
-       0.025791,      # V18
-       0.403993,      # V19
-       0.251412,      # V20
-       -0.018307,     # V21
-       0.277838,      # V22
-       -0.110474,     # V23
-       0.066928,      # V24
-       0.128539,      # V25
-       -0.189115,     # V26
-       0.133558,      # V27
-       -0.021053,     # V28
-       149.62         # Amount
-   ]])
-   try:
-       model = joblib.load("rf_model.joblib")
-       prediction = model.predict(dummy_input)
-       probability = model.predict_proba(dummy_input)
-       return {
-           "prediction": int(prediction[0]),
-           "probability": probability[0].tolist()
-       }
-   except Exception as e:
-       return {"error": str(e)}
+# --- Pydantic Schemas ---
+class UserBase(BaseModel):
+    name: str
+    email: str
+    phone: Optional[str] = None
+    address: Optional[str] = None
 
-@app.get("/health/mongo")
-def mongo_health_check():
-    try:
-        # The 'ping' command is the recommended way to check MongoDB connection
-        mongo_client.admin.command('ping')
-        return {"mongo_status": "ok"}
-    except PyMongoError as e:
-        return {"mongo_status": "error", "detail": str(e)}
+class UserCreate(UserBase):
+    pass
+
+class UserUpdate(UserBase):
+    pass
+
+class UserOut(UserBase):
+    id: int
+    created_at: Optional[datetime]
+    class Config:
+        orm_mode = True
+
+class TransactionBase(BaseModel):
+    user_id: int
+    time: int
+    amount: float
+    class_: Optional[bool] = None
+    status: Optional[str] = None
+
+class TransactionCreate(TransactionBase):
+    pass
+
+class TransactionUpdate(TransactionBase):
+    pass
+
+class TransactionOut(TransactionBase):
+    id: int
+    created_at: Optional[datetime]
+    class Config:
+        orm_mode = True
+
+# --- User CRUD Endpoints ---
+@app.post("/users/", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+def create_user(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = models.User(**user.dict())
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+@app.get("/users/", response_model=List[UserOut])
+def get_users(db: Session = Depends(get_db)):
+    return db.query(models.User).all()
+
+@app.get("/users/{user_id}", response_model=UserOut)
+def get_user(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+@app.put("/users/{user_id}", response_model=UserOut)
+def update_user(user_id: int, user: UserUpdate, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    for key, value in user.dict(exclude_unset=True).items():
+        setattr(db_user, key, value)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+@app.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(user_id: int, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    db.delete(db_user)
+    db.commit()
+    return None
+
+# --- Transaction CRUD Endpoints ---
+@app.post("/transactions/", response_model=TransactionOut, status_code=status.HTTP_201_CREATED)
+def create_transaction(transaction: TransactionCreate, db: Session = Depends(get_db)):
+    db_transaction = models.Transaction(**transaction.dict())
+    db.add(db_transaction)
+    db.commit()
+    db.refresh(db_transaction)
+    return db_transaction
+
+@app.get("/transactions/", response_model=List[TransactionOut])
+def get_transactions(db: Session = Depends(get_db)):
+    return db.query(models.Transaction).all()
+
+@app.get("/transactions/{transaction_id}", response_model=TransactionOut)
+def get_transaction(transaction_id: int, db: Session = Depends(get_db)):
+    transaction = db.query(models.Transaction).filter(models.Transaction.id == transaction_id).first()
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    return transaction
+
+@app.put("/transactions/{transaction_id}", response_model=TransactionOut)
+def update_transaction(transaction_id: int, transaction: TransactionUpdate, db: Session = Depends(get_db)):
+    db_transaction = db.query(models.Transaction).filter(models.Transaction.id == transaction_id).first()
+    if not db_transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    for key, value in transaction.dict(exclude_unset=True).items():
+        setattr(db_transaction, key, value)
+    db.commit()
+    db.refresh(db_transaction)
+    return db_transaction
+
+@app.delete("/transactions/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_transaction(transaction_id: int, db: Session = Depends(get_db)):
+    db_transaction = db.query(models.Transaction).filter(models.Transaction.id == transaction_id).first()
+    if not db_transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    db.delete(db_transaction)
+    db.commit()
+    return None
