@@ -1,11 +1,10 @@
 import pandas as pd
 from pymongo import MongoClient, errors
 
-# MongoDB Atlas connection string
-uri = "mongodb+srv://fakinwande:M50xQRyrwpnBGG9j@cluster0.f8wa06y.mongodb.net/"
+# Direct MongoDB Atlas connection string
+uri = "mongodb://fakinwande:M50xQRyrwpnBGG9j@ac-aumh9k0-shard-00-00.f8wa06y.mongodb.net:27017,ac-aumh9k0-shard-00-01.f8wa06y.mongodb.net:27017,ac-aumh9k0-shard-00-02.f8wa06y.mongodb.net:27017/credit_card_db?ssl=true&replicaSet=atlas-whycdv-shard-0&authSource=admin&retryWrites=true&w=majority"
 try:
-    client = MongoClient(uri, serverSelectionTimeoutMS=5000)
-    # Attempt to connect and trigger exception if cannot connect
+    client = MongoClient(uri, tls=True, tlsAllowInvalidCertificates=True)
     client.admin.command('ping')
     print("Connected to MongoDB Atlas!")
 except errors.ServerSelectionTimeoutError as err:
@@ -15,7 +14,7 @@ except errors.ServerSelectionTimeoutError as err:
 db = client['credit_card_db']
 
 # Read the first 50 rows of the CSV
-csv_path = 'MongoDB/creditcard.csv'
+csv_path = 'creditcard.csv'
 df = pd.read_csv(csv_path, nrows=50)
 
 # Prepare and insert transactions
@@ -54,4 +53,4 @@ if fraud_label_set:
         {"class": bool(int(cls)), "description": fraud_label_map[str(int(cls))]} for cls in fraud_label_set
     ])
 
-print("Data import complete!") 
+print("Data import complete!")
