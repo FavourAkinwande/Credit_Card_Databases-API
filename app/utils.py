@@ -1,3 +1,5 @@
+import numpy as np
+
 def generate_random_features():
     """
     Generate random features for a normal transaction.
