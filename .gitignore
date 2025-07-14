@@ -1,1 +1,56 @@
 MongoDB/creditcard.csv 
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Environment variables
+.env
+.env.*
+
+# VS Code settings
+.vscode/
+
+# macOS system files
+.DS_Store
+
+# Pytest cache
+.pytest_cache/
+
+# SQLite database files (if any)
+*.sqlite3
+
+# Coverage reports
+htmlcov/
+.coverage
+.tox/
+.nox/
+
+# Mypy
+.mypy_cache/
+
+# Logs
+*.log
+
+# Local development artifacts
+*.local
+
+# Ignore ERD images or PDFs if generated
+*.pdf
+*.png
+*.svg
+
+# Ignore test output
+test-results/
