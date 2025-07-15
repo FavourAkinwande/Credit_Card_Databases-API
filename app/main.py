@@ -31,6 +31,39 @@ def db_health_check(db=Depends(get_db)):
     except SQLAlchemyError as e:
         return {"db_status": "error", "detail": str(e)}
 
+@app.get("/predict")
+def predict(transaction_id: int, db: Session = Depends(get_db)):
+    """
+    Predict fraud for a transaction by its ID using its features.
+    """
+    # Fetch transaction features
+    features_obj = db.query(models.TransactionFeature).filter(models.TransactionFeature.transaction_id == transaction_id).first()
+    if not features_obj:
+        raise HTTPException(status_code=404, detail="Transaction features not found")
+
+    # Prepare input for the model: only the selected features
+    selected_features = ['V17', 'V12', 'V14', 'V10', 'V11', 'V16']
+    feature_values = []
+    for fname in selected_features:
+        value = getattr(features_obj, fname)
+        if value is None:
+            raise HTTPException(status_code=400, detail=f"Feature {fname} is missing for transaction {transaction_id}")
+        feature_values.append(float(value))
+
+    input_array = np.array([feature_values])
+
+    try:
+        model = joblib.load("rf_model.joblib")
+        prediction = model.predict(input_array)
+        probability = model.predict_proba(input_array)
+        return {
+            "transaction_id": transaction_id,
+            "prediction": int(prediction[0]),
+            "probability": probability[0].tolist()
+        }
+    except Exception as e:
+        return {"error":str(e)}
+
 # --- Pydantic Schemas ---
 class UserBase(BaseModel):
     name: str
