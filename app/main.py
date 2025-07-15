@@ -9,6 +9,12 @@ from typing import List, Optional
 from datetime import datetime
 from app.utils import generate_random_features, generate_fraud_prone_features
 from app.models import Base
+from app.database import engine
+import os
+from pymongo import MongoClient
+from pymongo.errors import PyMongoError
+import numpy as np
+import joblib
 
 app = FastAPI(
     title="Credit Card Transactions API",
@@ -65,7 +71,7 @@ def predict(transaction_id: int, db: Session = Depends(get_db)):
     input_array = np.array([feature_values])
 
     try:
-        model = joblib.load("rf_model.joblib")
+        model = joblib.load("./models/rf_model.joblib")
         prediction = model.predict(input_array)
         probability = model.predict_proba(input_array)
         return {
@@ -98,12 +104,11 @@ def predict_latest_transaction_features_mongo():
             feature_values.append(float(value))
         input_array = np.array([feature_values])
         try:
-            model = joblib.load("rf_model.joblib")
+            model = joblib.load("./models/rf_model.joblib")
             prediction = model.predict(input_array)
             probability = model.predict_proba(input_array)
             latest.pop('_id', None)
             return {
-                "transaction_features": latest,
                 "prediction": int(prediction[0]),
                 "probability": probability[0].tolist()
             }
