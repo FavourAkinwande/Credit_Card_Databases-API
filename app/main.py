@@ -19,6 +19,9 @@ app = FastAPI(
 # Create all tables on startup
 Base.metadata.create_all(bind=engine)
 
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+mongo_client = MongoClient(MONGO_URI)
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the Credit Card Transactions API"}
@@ -30,6 +33,15 @@ def db_health_check(db=Depends(get_db)):
         return {"db_status": "ok"}
     except SQLAlchemyError as e:
         return {"db_status": "error", "detail": str(e)}
+    
+@app.get("/health/mongo")
+def mongo_health_check():
+    try:
+        # The 'ping' command is the recommended way to check MongoDB connection
+        mongo_client.admin.command('ping')
+        return {"mongo_status": "ok"}
+    except PyMongoError as e:
+        return {"mongo_status": "error", "detail":str(e)}
 
 @app.get("/predict")
 def predict(transaction_id: int, db: Session = Depends(get_db)):
