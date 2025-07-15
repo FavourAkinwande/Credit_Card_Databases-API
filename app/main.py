@@ -76,6 +76,42 @@ def predict(transaction_id: int, db: Session = Depends(get_db)):
     except Exception as e:
         return {"error":str(e)}
 
+@app.get("/mongo/latest-transaction-features-predict")
+def predict_latest_transaction_features_mongo():
+    """
+    Retrieve the latest entry from the MongoDB transaction_features collection
+    and make a prediction using the model.
+    Only the features ['V17', 'V12', 'V14', 'V10', 'V11', 'V16'] are used.
+    """
+    try:
+        collection = mongo_client['credit_card_db']['transaction_features']
+        latest = collection.find_one(sort=[("transaction_id", -1)])
+        if not latest:
+            raise HTTPException(status_code=404, detail="No transaction features found in MongoDB.")
+        # Prepare input for the model: only the selected features
+        selected_features = ['V17', 'V12', 'V14', 'V10', 'V11', 'V16']
+        feature_values = []
+        for fname in selected_features:
+            value = latest.get(fname)
+            if value is None:
+                raise HTTPException(status_code=400, detail=f"Feature {fname} is missing in the latest MongoDB transaction_features entry.")
+            feature_values.append(float(value))
+        input_array = np.array([feature_values])
+        try:
+            model = joblib.load("rf_model.joblib")
+            prediction = model.predict(input_array)
+            probability = model.predict_proba(input_array)
+            latest.pop('_id', None)
+            return {
+                "transaction_features": latest,
+                "prediction": int(prediction[0]),
+                "probability": probability[0].tolist()
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Model prediction error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # --- Pydantic Schemas ---
 class UserBase(BaseModel):
     name: str
